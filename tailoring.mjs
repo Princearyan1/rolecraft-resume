@@ -46,7 +46,22 @@ export async function tailorResume(input,env,fetcher=fetch,attempt=0){
   if(!response.ok){
     const failure=await response.json().catch(()=>({}));
     const exhausted=['insufficient_quota','credit_balance_exhausted'].includes(failure.error?.code)||failure.error?.type==='insufficient_quota';
-    throw Object.assign(new Error(exhausted?'Groq quota is unavailable. Check your Groq Free plan limits and try again after the limit resets.':response.status===429?'The AI service rate limit was reached. Please wait and try again.':response.status===401?'The AI credentials need attention from the site owner.':'The AI service could not complete the rewrite. Your original resume is unchanged.'),{status:502});
+    const generationFailure=['json_validate_failed','failed_generation'].includes(failure.error?.code);
+    // Log only HTTP status: provider messages can contain private resume text.
+    console.warn('Groq request failed: HTTP '+response.status);
+    if(attempt===0&&(generationFailure||response.status===422||response.status>=500)){
+      await new Promise(resolve=>setTimeout(resolve,1000));
+      return tailorResume(input,env,fetcher,1);
+    }
+    const message=exhausted?'Groq quota is unavailable. Check your Groq Free plan limits and try again after the limit resets.'
+      :response.status===429?'The AI service rate limit was reached. Please wait and try again.'
+      :response.status===401?'The AI credentials need attention from the site owner.'
+      :response.status===413?'The resume and JD exceed the AI request size limit. Shorten the JD or resume text and try again.'
+      :response.status===403?'Groq denied model access. The site owner must check model permissions.'
+      :generationFailure||response.status===422?'The AI could not produce a valid draft after retrying. Try a shorter resume or JD. Your original resume is unchanged.'
+      :response.status>=500?'Groq is temporarily unavailable. Please try again shortly. Your original resume is unchanged.'
+      :`Groq rejected the rewrite request (HTTP ${response.status}). Please share this error code with the site owner. Your original resume is unchanged.`;
+    throw Object.assign(new Error(message),{status:502});
   }
   const data=await response.json();
   const choice=data.choices?.[0];

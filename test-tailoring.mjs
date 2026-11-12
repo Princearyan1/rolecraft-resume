@@ -31,3 +31,13 @@ await assert.rejects(()=>tailorResume({resume,jd:'User researcher with strong SQ
 console.log('PASS: identity/employment preservation, real content changes, unsupported skill exclusion, metrics/evidence/duplicate validation, no-key handling, structured API contract, incomplete and quota errors. API responses were mocked; no live AI request made.');
 
 
+let calls=0;
+const recovered=await tailorResume({resume,jd:'User researcher with strong SQL skills'},{GROQ_API_KEY:'fake-for-test'},async(...args)=>{calls++;return calls===1?{ok:false,status:503,json:async()=>({})}:mock(...args)});
+assert.equal(calls,2);assert.equal(recovered.resume,output.resume);
+calls=0;
+await assert.rejects(()=>tailorResume({resume,jd:'User researcher with strong SQL skills'},{GROQ_API_KEY:'fake-for-test'},async()=>{calls++;return {ok:false,status:422,json:async()=>({error:{message:'PRIVATE RESUME CONTENT'}})}}),/valid draft after retrying/);
+assert.equal(calls,2);
+calls=0;
+await assert.rejects(()=>tailorResume({resume,jd:'User researcher with strong SQL skills'},{GROQ_API_KEY:'fake-for-test'},async()=>{calls++;return {ok:false,status:413,json:async()=>({error:{message:'PRIVATE RESUME CONTENT'}})}}),/size limit/);
+assert.equal(calls,1);
+console.log('PASS: transient recovery, bounded retry, size-limit guidance and private provider message exclusion.');
