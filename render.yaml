@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: rolecraft-resume
+    runtime: node
+    plan: free
+    buildCommand: node test-tailoring.mjs
+    startCommand: node server.cjs
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: GROQ_API_KEY
+        sync: false
+
